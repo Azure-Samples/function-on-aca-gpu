@@ -1,0 +1,26 @@
+# Azure Functions Core
+azure-functions>=1.17.0
+
+# PyTorch with CUDA support
+--extra-index-url https://download.pytorch.org/whl/cu118
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Hugging Face Diffusers for Stable Diffusion
+diffusers>=0.25.0
+transformers>=4.36.0
+accelerate>=0.25.0
+safetensors>=0.4.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Optional: xFormers for memory efficient attention (significantly speeds up inference)
+# Uncomment if you need faster inference and have compatible GPU
+# xformers>=0.0.23
+
+# Hugging Face Hub for model download
+huggingface-hub>=0.20.0
+
+# Monitoring and logging
+opencensus-ext-azure>=1.1.0
