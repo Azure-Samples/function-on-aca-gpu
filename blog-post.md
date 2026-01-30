@@ -103,19 +103,146 @@ That's it! The heavy lifting is done by the `diffusers` library and the GPU.
 
 ### Step 3: Deploy to Azure
 
-This is the fun part! We'll use a script that does everything for you.
+You have two options: use the **Azure Portal** (great for learning) or **command line scripts** (faster for repeat deployments).
+
+---
+
+#### Option A: Deploy using Azure Portal 🖱️
+
+If you prefer clicking through a UI, follow these steps:
+
+**Part 1: Create a Container Registry**
+
+1. Go to the [Azure Portal](https://portal.azure.com) and search for **Container Registries**
+2. Click **+ Create**
+3. Fill in the details:
+
+   | Setting | Value |
+   |---------|-------|
+   | Subscription | Select your subscription |
+   | Resource group | Create new → `gpu-functions-rg` |
+   | Registry name | `gpufunctionsacr` (must be globally unique) |
+   | Location | `Sweden Central` |
+   | SKU | `Standard` |
+
+4. Click **Review + create** → **Create**
+5. Once created, go to the registry → **Settings** → **Access keys**
+6. Enable **Admin user** and note the **Login server**, **Username**, and **Password**
+
+**Part 2: Build and Push the Docker Image**
+
+Since we can't build Docker images directly in the portal, use Azure Cloud Shell:
+
+1. Click the **Cloud Shell** icon (>_) in the top navigation bar
+2. Choose **Bash**
+3. Run these commands:
+
+```bash
+# Clone the repo
+git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
+cd function-on-aca-gpu
+
+# Build and push to your registry
+az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dockerfile .
+```
+
+**Part 3: Create a Container Apps Environment with GPU**
+
+1. Search for **Container Apps Environments** and click **+ Create**
+2. Fill in the **Basics** tab:
+
+   | Setting | Value |
+   |---------|-------|
+   | Subscription | Select your subscription |
+   | Resource group | `gpu-functions-rg` |
+   | Environment name | `gpu-functions-env` |
+   | Region | `Sweden Central` |
+   | Environment type | `Workload profiles` |
+
+3. Click **Workload profiles** tab → **+ Add workload profile**
+4. Configure the GPU profile:
+
+   | Setting | Value |
+   |---------|-------|
+   | Workload profile name | `gpu-profile` |
+   | Workload profile size | `Consumption - GPU NC8as-T4` |
+
+5. Click **Add** → **Review + create** → **Create**
+
+**Part 4: Create a Storage Account**
+
+1. Search for **Storage accounts** and click **+ Create**
+2. Fill in:
+
+   | Setting | Value |
+   |---------|-------|
+   | Resource group | `gpu-functions-rg` |
+   | Storage account name | `gpufuncstg` + random numbers (must be unique) |
+   | Region | `Sweden Central` |
+   | Performance | `Standard` |
+   | Redundancy | `LRS` |
+
+3. Go to **Advanced** tab → Uncheck **Allow enabling anonymous access on individual containers**
+4. Click **Review + create** → **Create**
+
+**Part 5: Create the Function App**
+
+1. Search for **Function App** and click **+ Create**
+2. Select **Container App** as the hosting option
+3. Fill in the **Basics** tab:
+
+   | Setting | Value |
+   |---------|-------|
+   | Subscription | Select your subscription |
+   | Resource group | `gpu-functions-rg` |
+   | Function App name | `gpu-image-gen-func` |
+   | Region | `Sweden Central` |
+   | Container Apps Environment | Select `gpu-functions-env` |
+
+4. Click **Container** tab:
+
+   | Setting | Value |
+   |---------|-------|
+   | Image source | `Azure Container Registry` |
+   | Registry | `gpufunctionsacr` |
+   | Image | `gpu-image-gen` |
+   | Tag | `latest` |
+   | Workload profile | `gpu-profile` |
+
+5. Click **Storage** tab → Select your storage account
+6. Click **Review + create** → **Create**
+
+**Part 6: Configure App Settings**
+
+1. Go to your Function App → **Settings** → **Environment variables**
+2. Add these settings:
+
+   | Name | Value |
+   |------|-------|
+   | `MODEL_ID` | `runwayml/stable-diffusion-v1-5` |
+   | `FUNCTIONS_WORKER_RUNTIME` | `python` |
+
+3. Click **Apply** → **Confirm**
+
+🎉 **Done!** Find your function URL under **Overview** → **Default domain**
+
+---
+
+#### Option B: Deploy using Command Line 💻
+
+If you prefer scripts (faster for repeat deployments), use our one-click deployment:
 
 **On Windows (PowerShell):**
 
 ```powershell
-cd gpu-function-image-gen
+cd function-on-aca-gpu
 .\deploy.ps1
 ```
 
 **On Mac/Linux:**
 
 ```bash
-cd gpu-function-image-gen
+cd function-on-aca-gpu
 chmod +x deploy.sh
 ./deploy.sh
 ```
