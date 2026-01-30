@@ -58,8 +58,8 @@ The magic happens inside an Azure Function running on a container with GPU acces
 First, grab the sample code from GitHub:
 
 ```bash
-git clone https://github.com/niteshjain/gpu-function-image-gen.git
-cd gpu-function-image-gen
+git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
+cd function-on-aca-gpu
 ```
 
 Or if you want to build from scratch, here's what's in the project:
@@ -317,7 +317,7 @@ Here's what we accomplished:
 - ✅ Created a simple API anyone can call
 - ✅ Learned how to optimize costs and performance
 
-The full source code is available at: **[github.com/niteshjain/gpu-function-image-gen](https://github.com/niteshjain/gpu-function-image-gen)**
+The full source code is available at: **[github.com/Azure-Samples/function-on-aca-gpu](https://github.com/Azure-Samples/function-on-aca-gpu)**
 
 Have questions or built something cool? I'd love to hear about it!
 
@@ -328,4 +328,4 @@ Have questions or built something cool? I'd love to hear about it!
 - 📚 [Azure Container Apps GPU docs](https://learn.microsoft.com/en-us/azure/container-apps/gpu-serverless-overview)
 - 📚 [Azure Functions on Container Apps](https://learn.microsoft.com/en-us/azure/azure-functions/functions-container-apps-hosting)
 - 📚 [Stable Diffusion guide](https://huggingface.co/docs/diffusers/using-diffusers/sdxl)
-- 💻 [Sample code on GitHub](https://github.com/niteshjain/gpu-function-image-gen)
+- 💻 [Sample code on GitHub](https://github.com/Azure-Samples/function-on-aca-gpu)
