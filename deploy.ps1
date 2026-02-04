@@ -9,6 +9,7 @@ param(
     [string]$EnvironmentName = "gpu-functions-env",
     [string]$FunctionAppName = "gpu-image-gen-func",
     [string]$StorageAccount = "gpufuncstg$(Get-Random -Maximum 9999)",
+    [string]$ManagedIdentityName = "gpu-func-identity",
     [string]$ImageName = "gpu-image-gen",
     [string]$ImageTag = "latest"
 )
@@ -53,13 +54,36 @@ az acr create `
     --resource-group $ResourceGroup `
     --name $AcrName `
     --sku Standard `
-    --admin-enabled true `
+    --admin-enabled false `
     --output none
 
-# Get ACR credentials
+# Get ACR details
 $AcrLoginServer = az acr show --name $AcrName --query loginServer -o tsv
-$AcrUsername = az acr credential show --name $AcrName --query username -o tsv
-$AcrPassword = az acr credential show --name $AcrName --query "passwords[0].value" -o tsv
+$AcrId = az acr show --name $AcrName --query id -o tsv
+
+# Create User-Assigned Managed Identity
+Write-Host "Creating Managed Identity..." -ForegroundColor Yellow
+az identity create `
+    --name $ManagedIdentityName `
+    --resource-group $ResourceGroup `
+    --location $Location `
+    --output none
+
+$ManagedIdentityId = az identity show --name $ManagedIdentityName --resource-group $ResourceGroup --query id -o tsv
+$ManagedIdentityPrincipalId = az identity show --name $ManagedIdentityName --resource-group $ResourceGroup --query principalId -o tsv
+$ManagedIdentityClientId = az identity show --name $ManagedIdentityName --resource-group $ResourceGroup --query clientId -o tsv
+
+# Assign AcrPull role to Managed Identity
+Write-Host "Assigning AcrPull role to Managed Identity..." -ForegroundColor Yellow
+az role assignment create `
+    --assignee $ManagedIdentityPrincipalId `
+    --role "AcrPull" `
+    --scope $AcrId `
+    --output none
+
+# Wait for role assignment to propagate
+Write-Host "Waiting for role assignment to propagate..." -ForegroundColor Yellow
+Start-Sleep -Seconds 30
 
 # Build and push the image
 Write-Host "Building and pushing Docker image..." -ForegroundColor Yellow
@@ -110,8 +134,8 @@ az containerapp create `
     --environment $EnvironmentName `
     --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
     --registry-server $AcrLoginServer `
-    --registry-username $AcrUsername `
-    --registry-password $AcrPassword `
+    --registry-identity $ManagedIdentityId `
+    --user-assigned $ManagedIdentityId `
     --ingress external `
     --target-port 80 `
     --kind functionapp `

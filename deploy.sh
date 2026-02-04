@@ -12,6 +12,7 @@ ACR_NAME="${ACR_NAME:-gpufunctionsacr}"
 ENVIRONMENT_NAME="${ENVIRONMENT_NAME:-gpu-functions-env}"
 FUNCTION_APP_NAME="${FUNCTION_APP_NAME:-gpu-image-gen-func}"
 STORAGE_ACCOUNT="${STORAGE_ACCOUNT:-gpufuncstg$RANDOM}"
+MANAGED_IDENTITY_NAME="${MANAGED_IDENTITY_NAME:-gpu-func-identity}"
 IMAGE_NAME="gpu-image-gen"
 IMAGE_TAG="latest"
 
@@ -46,13 +47,36 @@ az acr create \
     --resource-group "$RESOURCE_GROUP" \
     --name "$ACR_NAME" \
     --sku Standard \
-    --admin-enabled true \
+    --admin-enabled false \
     --output none
 
-# Get ACR credentials
+# Get ACR details
 ACR_LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
-ACR_USERNAME=$(az acr credential show --name "$ACR_NAME" --query username -o tsv)
-ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)
+ACR_ID=$(az acr show --name "$ACR_NAME" --query id -o tsv)
+
+# Create User-Assigned Managed Identity
+echo "Creating Managed Identity..."
+az identity create \
+    --name "$MANAGED_IDENTITY_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --location "$LOCATION" \
+    --output none
+
+MANAGED_IDENTITY_ID=$(az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
+MANAGED_IDENTITY_PRINCIPAL_ID=$(az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" --query principalId -o tsv)
+MANAGED_IDENTITY_CLIENT_ID=$(az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" --query clientId -o tsv)
+
+# Assign AcrPull role to Managed Identity
+echo "Assigning AcrPull role to Managed Identity..."
+az role assignment create \
+    --assignee "$MANAGED_IDENTITY_PRINCIPAL_ID" \
+    --role "AcrPull" \
+    --scope "$ACR_ID" \
+    --output none
+
+# Wait for role assignment to propagate
+echo "Waiting for role assignment to propagate..."
+sleep 30
 
 # Build and push the image
 echo "Building and pushing Docker image..."
@@ -102,8 +126,8 @@ az containerapp create \
     --environment "$ENVIRONMENT_NAME" \
     --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
     --registry-server "$ACR_LOGIN_SERVER" \
-    --registry-username "$ACR_USERNAME" \
-    --registry-password "$ACR_PASSWORD" \
+    --registry-identity "$MANAGED_IDENTITY_ID" \
+    --user-assigned "$MANAGED_IDENTITY_ID" \
     --ingress external \
     --target-port 80 \
     --kind functionapp \
