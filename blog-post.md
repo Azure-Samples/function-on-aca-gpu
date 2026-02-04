@@ -240,8 +240,8 @@ If you prefer clicking through a UI, follow these steps:
    | SKU | `Standard` |
 
 4. Click **Review + create** → **Create**
-5. Once created, go to the registry → **Settings** → **Access keys**
-6. Enable **Admin user** and note the **Login server**, **Username**, and **Password**
+
+> 💡 **Note:** We'll use system-assigned managed identity for authentication, so no need to enable admin user or save credentials!
 
 **Part 2: Build and Push the Docker Image**
 
@@ -307,6 +307,7 @@ az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dock
    | Image tag | `latest` |
    | Workload profile | `gpu-profile` |
    | GPU | ✅ Check this box |
+   | **Managed identity** | `System assigned` |
 
 4. Add environment variables at the bottom of the Container tab:
 
@@ -324,6 +325,21 @@ az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dock
    | Target port | `80` |
 
 6. Click **Review + create** → **Create**
+
+**Part 5: Grant ACR Pull Permission to the Container App**
+
+After the Container App is created, we need to grant it permission to pull images from the registry:
+
+1. Go to your Container App (`gpu-image-gen-func`) → **Identity** (under Settings)
+2. Verify **System assigned** is **On** and note the **Object ID**
+3. Go to your Container Registry (`gpufunctionsacr`) → **Access control (IAM)**
+4. Click **+ Add** → **Add role assignment**
+5. Select **AcrPull** role → Click **Next**
+6. Select **Managed identity** → Click **+ Select members**
+7. Choose **Container App** and select `gpu-image-gen-func`
+8. Click **Select** → **Review + assign** → **Review + assign**
+
+> 💡 **Tip:** The first deployment may fail because the identity wasn't ready yet. Simply restart the Container App or create a new revision after granting the role.
 
 🎉 **Done!** Once deployed, find your function URL under **Overview** → **Application Url**
 
