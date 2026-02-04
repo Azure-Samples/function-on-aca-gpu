@@ -1,6 +1,6 @@
-# Build Your Own AI Image Generator with Azure Functions and GPUs 🎨
+# Build Your Own AI Image Generator with Azure Functions on Container Apps and GPUs 🎨
 
-Ever wanted to create your own AI-powered image generator? In this tutorial, I'll show you how to build one using Azure Functions and serverless GPUs. The best part? You don't need to worry about managing servers or installing GPU drivers - Azure handles all of that for you!
+Ever wanted to create your own AI-powered image generator? In this tutorial, I'll show you how to build one using Azure Functions running on Azure Container Apps with serverless GPUs. The best part? You don't need to worry about managing servers or installing GPU drivers - Azure handles all of that for you!
 
 ## What We're Building
 
@@ -41,11 +41,11 @@ You'll need a few things ready:
 Here's the simple flow:
 
 ```
-Your App  →  Azure Function  →  Stable Diffusion (on GPU)  →  Image!
-   📱            ⚡                    🎨                      🖼️
+Your App  →  Azure Function on Container Apps  →  Stable Diffusion (on GPU)  →  Image!
+   📱                   ⚡                              🎨                       🖼️
 ```
 
-The magic happens inside an Azure Function running on a container with GPU access. When a request comes in:
+The magic happens inside an Azure Function running on Azure Container Apps with GPU access. When a request comes in:
 
 1. The function receives your text prompt
 2. Stable Diffusion (running on a Tesla T4 GPU) generates the image
@@ -62,7 +62,7 @@ git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
 cd function-on-aca-gpu
 ```
 
-Or if you want to build from scratch, here's what's in the project:
+Here's what's in the project:
 
 ```
 gpu-function-image-gen/
@@ -103,134 +103,13 @@ That's it! The heavy lifting is done by the `diffusers` library and the GPU.
 
 ### Step 3: Deploy to Azure
 
-You have two options: use the **Azure Portal** (great for learning) or **command line scripts** (faster for repeat deployments).
+You have two options: **command line scripts** (faster, recommended) or the **Azure Portal** (great for learning).
 
 ---
 
-#### Option A: Deploy using Azure Portal 🖱️
+#### Option A: Deploy using Command Line 💻
 
-If you prefer clicking through a UI, follow these steps:
-
-**Part 1: Create a Container Registry**
-
-1. Go to the [Azure Portal](https://portal.azure.com) and search for **Container Registries**
-2. Click **+ Create**
-3. Fill in the details:
-
-   | Setting | Value |
-   |---------|-------|
-   | Subscription | Select your subscription |
-   | Resource group | Create new → `gpu-functions-rg` |
-   | Registry name | `gpufunctionsacr` (must be globally unique) |
-   | Location | `Sweden Central` |
-   | SKU | `Standard` |
-
-4. Click **Review + create** → **Create**
-5. Once created, go to the registry → **Settings** → **Access keys**
-6. Enable **Admin user** and note the **Login server**, **Username**, and **Password**
-
-**Part 2: Build and Push the Docker Image**
-
-Since we can't build Docker images directly in the portal, use Azure Cloud Shell:
-
-1. Click the **Cloud Shell** icon (>_) in the top navigation bar
-2. Choose **Bash**
-3. Run these commands:
-
-```bash
-# Clone the repo
-git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
-cd function-on-aca-gpu
-
-# Build and push to your registry
-az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dockerfile .
-```
-
-**Part 3: Create a Container Apps Environment with GPU**
-
-1. Search for **Container Apps Environments** and click **+ Create**
-2. Fill in the **Basics** tab:
-
-   | Setting | Value |
-   |---------|-------|
-   | Subscription | Select your subscription |
-   | Resource group | `gpu-functions-rg` |
-   | Environment name | `gpu-functions-env` |
-   | Region | `Sweden Central` |
-   | Environment type | `Workload profiles` |
-
-3. Click **Workload profiles** tab → **+ Add workload profile**
-4. Configure the GPU profile:
-
-   | Setting | Value |
-   |---------|-------|
-   | Workload profile name | `gpu-profile` |
-   | Workload profile size | `Consumption - GPU NC8as-T4` |
-
-5. Click **Add** → **Review + create** → **Create**
-
-**Part 4: Create a Storage Account**
-
-1. Search for **Storage accounts** and click **+ Create**
-2. Fill in:
-
-   | Setting | Value |
-   |---------|-------|
-   | Resource group | `gpu-functions-rg` |
-   | Storage account name | `gpufuncstg` + random numbers (must be unique) |
-   | Region | `Sweden Central` |
-   | Performance | `Standard` |
-   | Redundancy | `LRS` |
-
-3. Go to **Advanced** tab → Uncheck **Allow enabling anonymous access on individual containers**
-4. Click **Review + create** → **Create**
-
-**Part 5: Create the Function App**
-
-1. Search for **Function App** and click **+ Create**
-2. Select **Container App** as the hosting option
-3. Fill in the **Basics** tab:
-
-   | Setting | Value |
-   |---------|-------|
-   | Subscription | Select your subscription |
-   | Resource group | `gpu-functions-rg` |
-   | Function App name | `gpu-image-gen-func` |
-   | Region | `Sweden Central` |
-   | Container Apps Environment | Select `gpu-functions-env` |
-
-4. Click **Container** tab:
-
-   | Setting | Value |
-   |---------|-------|
-   | Image source | `Azure Container Registry` |
-   | Registry | `gpufunctionsacr` |
-   | Image | `gpu-image-gen` |
-   | Tag | `latest` |
-   | Workload profile | `gpu-profile` |
-
-5. Click **Storage** tab → Select your storage account
-6. Click **Review + create** → **Create**
-
-**Part 6: Configure App Settings**
-
-1. Go to your Function App → **Settings** → **Environment variables**
-2. Add these settings:
-
-   | Name | Value |
-   |------|-------|
-   | `MODEL_ID` | `runwayml/stable-diffusion-v1-5` |
-   | `FUNCTIONS_WORKER_RUNTIME` | `python` |
-
-3. Click **Apply** → **Confirm**
-
-🎉 **Done!** Find your function URL under **Overview** → **Default domain**
-
----
-
-#### Option B: Deploy using Command Line 💻
-
-If you prefer scripts (faster for repeat deployments), use our one-click deployment:
+Use our one-click deployment script - it does everything for you!
 
 **On Windows (PowerShell):**
 
@@ -270,9 +149,121 @@ Endpoints:
 ============================================
 ```
 
-### Step 4: Test Your Image Generator!
+---
 
-Let's make sure everything works. First, check the health endpoint:
+#### Option B: Deploy using Azure Portal 🖱️
+
+If you prefer clicking through a UI, follow these steps:
+
+**Part 1: Create a Container Registry**
+
+1. Go to the [Azure Portal](https://portal.azure.com) and search for **Container Registries**
+2. Click **+ Create**
+3. Fill in the details:
+
+   | Setting | Value |
+   |---------|-------|
+   | Subscription | Select your subscription |
+   | Resource group | Create new → `gpu-functions-rg` |
+   | Registry name | `gpufunctionsacr` (must be globally unique) |
+   | Location | `Sweden Central` |
+   | SKU | `Standard` |
+
+4. Click **Review + create** → **Create**
+5. Once created, go to the registry → **Settings** → **Access keys**
+6. Enable **Admin user** and note the **Login server**, **Username**, and **Password**
+
+**Part 2: Build and Push the Docker Image**
+
+Since we can't build Docker images directly in the portal, use Azure Cloud Shell:
+
+1. Click the **Cloud Shell** icon (>_) in the top navigation bar
+2. Choose **Bash**
+3. Navigate to your cloned repo folder (from Step 1) and run:
+
+```bash
+cd function-on-aca-gpu
+
+# Build and push to your registry
+az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dockerfile .
+```
+
+**Part 3: Create a Container Apps Environment with GPU**
+
+1. Search for **Container Apps Environments** and click **+ Create**
+2. Fill in the **Basics** tab:
+
+   | Setting | Value |
+   |---------|-------|
+   | Subscription | Select your subscription |
+   | Resource group | `gpu-functions-rg` |
+   | Environment name | `gpu-functions-env` |
+   | Region | `Sweden Central` |
+   | Environment type | `Workload profiles` |
+
+3. Click **Workload profiles** tab → **+ Add workload profile**
+4. Configure the GPU profile:
+
+   | Setting | Value |
+   |---------|-------|
+   | Workload profile name | `gpu-profile` |
+   | Workload profile size | `Consumption - GPU NC8as-T4` |
+
+5. Click **Add** → **Review + create** → **Create**
+
+**Part 4: Create the Container App with Azure Functions**
+
+1. Search for **Container Apps** and click **+ Create** → **Container App**
+2. Fill in the **Basics** tab:
+
+   | Setting | Value |
+   |---------|-------|
+   | Subscription | Select your subscription |
+   | Resource group | `gpu-functions-rg` |
+   | Container app name | `gpu-image-gen-func` |
+   | **Optimize for Azure Functions** | ✅ **Check this box!** (This is important - it enables Azure Functions support) |
+   | Region | `Sweden Central` |
+   | Container Apps Environment | Select `gpu-functions-env` |
+
+3. Click **Next: Container >** and fill in:
+
+   | Setting | Value |
+   |---------|-------|
+   | Use quickstart image | ❌ Uncheck |
+   | Name | `gpu-image-gen-container` |
+   | Image source | `Azure Container Registry` |
+   | Registry | `gpufunctionsacr` |
+   | Image | `gpu-image-gen` |
+   | Image tag | `latest` |
+   | Workload profile | `gpu-profile` |
+   | GPU | ✅ Check this box |
+
+4. Add environment variables at the bottom of the Container tab:
+
+   | Name | Value |
+   |------|-------|
+   | `MODEL_ID` | `runwayml/stable-diffusion-v1-5` |
+   | `FUNCTIONS_WORKER_RUNTIME` | `python` |
+
+5. Click **Next: Ingress >** and configure:
+
+   | Setting | Value |
+   |---------|-------|
+   | Ingress | ✅ Enabled |
+   | Ingress traffic | `Accepting traffic from anywhere` |
+   | Target port | `80` |
+
+6. Click **Review + create** → **Create**
+
+🎉 **Done!** Once deployed, find your function URL under **Overview** → **Application Url**
+
+## Test Your Image Generator! 🧪
+
+Now that your function is deployed, let's make sure everything works!
+
+### Check the Health Endpoint
+
+First, verify the GPU is available:
 
 ```powershell
 Invoke-RestMethod -Uri "https://YOUR-FUNCTION-URL/api/health"
@@ -290,7 +281,9 @@ You should see:
 }
 ```
 
-🎉 **GPU detected!** Now let's generate an image:
+🎉 **GPU detected!** Now let's generate an image.
+
+### Generate Your First Image
 
 ```powershell
 # Create the request
@@ -387,16 +380,20 @@ az acr artifact-streaming update \
 
 ## What About Costs? 💰
 
-Good news - this can be very affordable! Here's the breakdown:
+Good news - this can be very affordable! Here's where to find pricing for each resource:
 
-| What | Cost |
-|------|------|
-| **GPU compute** | ~$0.75/hour when running |
-| **Scale to zero** | $0 when idle (if min-replicas=0) |
-| **Container Registry** | ~$5/month for storage |
-| **Storage Account** | A few cents/month |
+| Resource | Pricing Info |
+|----------|-------------|
+| **Azure Container Apps (GPU)** | [Container Apps Pricing](https://azure.microsoft.com/pricing/details/container-apps/) - GPU workload profiles section |
+| **Azure Container Registry** | [ACR Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
+| **Azure Functions** | [Functions Pricing](https://azure.microsoft.com/pricing/details/functions/) - Container Apps hosting |
 
-**My tip:** Set `min-replicas` to 0 during development. You'll wait a bit for cold starts, but you won't pay when you're not using it!
+**Key cost-saving tips:**
+
+- 💡 Set `min-replicas` to **0** during development - you only pay when the function is running!
+- 💡 GPU billing is per-second when containers are active
+- 💡 Scale to zero means $0 when idle (just wait for cold starts)
+- 💡 Use the [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) to estimate your monthly costs
 
 ## Clean Up When Done 🧹
 
