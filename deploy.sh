@@ -29,6 +29,10 @@ echo "============================================"
 echo "Checking Azure login..."
 az account show > /dev/null 2>&1 || az login
 
+# Ensure the containerapp extension is up to date (required for --kind functionapp)
+echo "Updating Azure CLI containerapp extension..."
+az extension add --name containerapp --upgrade --allow-preview true
+
 # Set subscription
 echo "Setting subscription..."
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -132,18 +136,18 @@ sleep 30
 
 # Update the container app to use the ACR image with system identity
 echo "Updating container app with ACR image..."
-az containerapp update \
-    --name "$FUNCTION_APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
-    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
-    --output none
-
 az containerapp registry set \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --server "$ACR_LOGIN_SERVER" \
     --identity system \
+    --output none
+
+az containerapp update \
+    --name "$FUNCTION_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
+    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
     --output none
 
 # Get the function app URL

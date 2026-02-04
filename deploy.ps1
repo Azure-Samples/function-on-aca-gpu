@@ -34,6 +34,10 @@ try {
     az login
 }
 
+# Ensure containerapp extension is up to date
+Write-Host "Updating Azure CLI containerapp extension..." -ForegroundColor Yellow
+az extension add --name containerapp --upgrade --allow-preview true 2>$null
+
 # Set subscription
 if ($SubscriptionId) {
     Write-Host "Setting subscription..." -ForegroundColor Yellow
@@ -102,6 +106,7 @@ az containerapp env workload-profile add `
     --output none
 
 # Create the Function App on Container Apps with GPU (with system-assigned identity)
+# Following: https://learn.microsoft.com/en-us/azure/container-apps/functions-usage
 Write-Host "Creating Function App on Container Apps with GPU..." -ForegroundColor Yellow
 az containerapp create `
     --name $FunctionAppName `
@@ -117,7 +122,7 @@ az containerapp create `
     --min-replicas 0 `
     --max-replicas 3 `
     --system-assigned `
-    --env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
+    --env-vars "AzureWebJobsStorage=$StorageConnection" `
     --output none
 
 # Get the system-assigned identity principal ID
@@ -140,18 +145,18 @@ Start-Sleep -Seconds 30
 
 # Update the container app to use the ACR image with system identity
 Write-Host "Updating container app with ACR image..." -ForegroundColor Yellow
-az containerapp update `
-    --name $FunctionAppName `
-    --resource-group $ResourceGroup `
-    --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
-    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
-    --output none
-
 az containerapp registry set `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
     --server $AcrLoginServer `
     --identity system `
+    --output none
+
+az containerapp update `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroup `
+    --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
+    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
     --output none
 
 # Get the function app URL
