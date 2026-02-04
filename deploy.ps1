@@ -9,7 +9,6 @@ param(
     [string]$EnvironmentName = "gpu-functions-env",
     [string]$FunctionAppName = "gpu-image-gen-func",
     [string]$StorageAccount = "gpufuncstg$(Get-Random -Maximum 9999)",
-    [string]$ManagedIdentityName = "gpu-func-identity",
     [string]$ImageName = "gpu-image-gen",
     [string]$ImageTag = "latest"
 )
@@ -61,30 +60,6 @@ az acr create `
 $AcrLoginServer = az acr show --name $AcrName --query loginServer -o tsv
 $AcrId = az acr show --name $AcrName --query id -o tsv
 
-# Create User-Assigned Managed Identity
-Write-Host "Creating Managed Identity..." -ForegroundColor Yellow
-az identity create `
-    --name $ManagedIdentityName `
-    --resource-group $ResourceGroup `
-    --location $Location `
-    --output none
-
-$ManagedIdentityId = az identity show --name $ManagedIdentityName --resource-group $ResourceGroup --query id -o tsv
-$ManagedIdentityPrincipalId = az identity show --name $ManagedIdentityName --resource-group $ResourceGroup --query principalId -o tsv
-$ManagedIdentityClientId = az identity show --name $ManagedIdentityName --resource-group $ResourceGroup --query clientId -o tsv
-
-# Assign AcrPull role to Managed Identity
-Write-Host "Assigning AcrPull role to Managed Identity..." -ForegroundColor Yellow
-az role assignment create `
-    --assignee $ManagedIdentityPrincipalId `
-    --role "AcrPull" `
-    --scope $AcrId `
-    --output none
-
-# Wait for role assignment to propagate
-Write-Host "Waiting for role assignment to propagate..." -ForegroundColor Yellow
-Start-Sleep -Seconds 30
-
 # Build and push the image
 Write-Host "Building and pushing Docker image..." -ForegroundColor Yellow
 az acr build `
@@ -126,16 +101,13 @@ az containerapp env workload-profile add `
     --workload-profile-type "Consumption-GPU-NC8as-T4" `
     --output none
 
-# Create the Function App on Container Apps with GPU
+# Create the Function App on Container Apps with GPU (with system-assigned identity)
 Write-Host "Creating Function App on Container Apps with GPU..." -ForegroundColor Yellow
 az containerapp create `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
     --environment $EnvironmentName `
-    --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
-    --registry-server $AcrLoginServer `
-    --registry-identity $ManagedIdentityId `
-    --user-assigned $ManagedIdentityId `
+    --image "mcr.microsoft.com/azure-functions/dotnet8-quickstart-demo:1.0" `
     --ingress external `
     --target-port 80 `
     --kind functionapp `
@@ -144,7 +116,42 @@ az containerapp create `
     --memory 28Gi `
     --min-replicas 0 `
     --max-replicas 3 `
+    --system-assigned `
     --env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
+    --output none
+
+# Get the system-assigned identity principal ID
+Write-Host "Configuring system-assigned managed identity for ACR access..." -ForegroundColor Yellow
+$SystemIdentityPrincipalId = az containerapp show `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroup `
+    --query "identity.principalId" -o tsv
+
+# Assign AcrPull role to system-assigned identity
+az role assignment create `
+    --assignee $SystemIdentityPrincipalId `
+    --role "AcrPull" `
+    --scope $AcrId `
+    --output none
+
+# Wait for role assignment to propagate
+Write-Host "Waiting for role assignment to propagate..." -ForegroundColor Yellow
+Start-Sleep -Seconds 30
+
+# Update the container app to use the ACR image with system identity
+Write-Host "Updating container app with ACR image..." -ForegroundColor Yellow
+az containerapp update `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroup `
+    --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
+    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
+    --output none
+
+az containerapp registry set `
+    --name $FunctionAppName `
+    --resource-group $ResourceGroup `
+    --server $AcrLoginServer `
+    --identity system `
     --output none
 
 # Get the function app URL

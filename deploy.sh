@@ -12,7 +12,6 @@ ACR_NAME="${ACR_NAME:-gpufunctionsacr}"
 ENVIRONMENT_NAME="${ENVIRONMENT_NAME:-gpu-functions-env}"
 FUNCTION_APP_NAME="${FUNCTION_APP_NAME:-gpu-image-gen-func}"
 STORAGE_ACCOUNT="${STORAGE_ACCOUNT:-gpufuncstg$RANDOM}"
-MANAGED_IDENTITY_NAME="${MANAGED_IDENTITY_NAME:-gpu-func-identity}"
 IMAGE_NAME="gpu-image-gen"
 IMAGE_TAG="latest"
 
@@ -54,30 +53,6 @@ az acr create \
 ACR_LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
 ACR_ID=$(az acr show --name "$ACR_NAME" --query id -o tsv)
 
-# Create User-Assigned Managed Identity
-echo "Creating Managed Identity..."
-az identity create \
-    --name "$MANAGED_IDENTITY_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --location "$LOCATION" \
-    --output none
-
-MANAGED_IDENTITY_ID=$(az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
-MANAGED_IDENTITY_PRINCIPAL_ID=$(az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" --query principalId -o tsv)
-MANAGED_IDENTITY_CLIENT_ID=$(az identity show --name "$MANAGED_IDENTITY_NAME" --resource-group "$RESOURCE_GROUP" --query clientId -o tsv)
-
-# Assign AcrPull role to Managed Identity
-echo "Assigning AcrPull role to Managed Identity..."
-az role assignment create \
-    --assignee "$MANAGED_IDENTITY_PRINCIPAL_ID" \
-    --role "AcrPull" \
-    --scope "$ACR_ID" \
-    --output none
-
-# Wait for role assignment to propagate
-echo "Waiting for role assignment to propagate..."
-sleep 30
-
 # Build and push the image
 echo "Building and pushing Docker image..."
 az acr build \
@@ -118,16 +93,13 @@ az containerapp env workload-profile add \
     --workload-profile-type "Consumption-GPU-NC8as-T4" \
     --output none
 
-# Create the Function App on Container Apps with GPU
+# Create the Function App on Container Apps with GPU (with system-assigned identity)
 echo "Creating Function App on Container Apps with GPU..."
 az containerapp create \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
     --environment "$ENVIRONMENT_NAME" \
-    --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
-    --registry-server "$ACR_LOGIN_SERVER" \
-    --registry-identity "$MANAGED_IDENTITY_ID" \
-    --user-assigned "$MANAGED_IDENTITY_ID" \
+    --image "mcr.microsoft.com/azure-functions/dotnet8-quickstart-demo:1.0" \
     --ingress external \
     --target-port 80 \
     --kind functionapp \
@@ -136,7 +108,42 @@ az containerapp create \
     --memory 28Gi \
     --min-replicas 0 \
     --max-replicas 3 \
+    --system-assigned \
     --env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
+    --output none
+
+# Get the system-assigned identity principal ID
+echo "Configuring system-assigned managed identity for ACR access..."
+SYSTEM_IDENTITY_PRINCIPAL_ID=$(az containerapp show \
+    --name "$FUNCTION_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query "identity.principalId" -o tsv)
+
+# Assign AcrPull role to system-assigned identity
+az role assignment create \
+    --assignee "$SYSTEM_IDENTITY_PRINCIPAL_ID" \
+    --role "AcrPull" \
+    --scope "$ACR_ID" \
+    --output none
+
+# Wait for role assignment to propagate
+echo "Waiting for role assignment to propagate..."
+sleep 30
+
+# Update the container app to use the ACR image with system identity
+echo "Updating container app with ACR image..."
+az containerapp update \
+    --name "$FUNCTION_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
+    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
+    --output none
+
+az containerapp registry set \
+    --name "$FUNCTION_APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --server "$ACR_LOGIN_SERVER" \
+    --identity system \
     --output none
 
 # Get the function app URL
