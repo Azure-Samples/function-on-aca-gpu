@@ -102,6 +102,9 @@ venv.bak/
 local.settings.json
 .python_packages/
 
+# Azure Developer CLI (contains sensitive environment data)
+.azure/
+
 # IDE
 .idea/
 .vscode/
@@ -120,3 +123,8 @@ models/
 
 # Docker
 .docker/
+
+# Generated images (test outputs)
+*.png
+*.jpg
+*.jpeg
