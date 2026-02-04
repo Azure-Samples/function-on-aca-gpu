@@ -1,12 +1,22 @@
-# Build Your Own AI Image Generator with Azure Functions on Container Apps and GPUs 🎨
+---
+title: "Serverless GPU Tutorial: Build an AI Image Generator with Azure Functions"
+description: "Learn how to deploy Stable Diffusion on Azure Container Apps with serverless GPUs. Step-by-step tutorial using Azure Functions, NVIDIA T4 GPUs, and scale-to-zero billing."
+keywords: "serverless GPU, Azure Container Apps GPU, Azure Functions GPU, Stable Diffusion Azure, serverless GPU tutorial, Azure GPU pricing, NVIDIA T4 Azure"
+author: "Nitesh Jain"
+date: "2026-02-04"
+---
 
-Ever wanted to create your own AI-powered image generator? In this tutorial, I'll show you how to build one using Azure Functions running on Azure Container Apps with serverless GPUs. The best part? You don't need to worry about managing servers or installing GPU drivers - Azure handles all of that for you!
+# Build Your Own AI Image Generator with Azure Functions and Serverless GPUs 🎨
+
+> **TL;DR:** Deploy a Stable Diffusion image generator on Azure using serverless GPUs. Get NVIDIA T4 GPU power with scale-to-zero pricing - only pay when generating images. One-command deployment with `azd up`.
+
+Ever wanted to create your own AI-powered image generator? In this tutorial, I'll show you how to build one using **Azure Functions** running on **Azure Container Apps with serverless GPUs**. The best part? You don't need to worry about managing servers or installing GPU drivers - Azure handles all of that for you!
 
 ## What We're Building
 
 We're going to create an API that turns text descriptions into images using Stable Diffusion. Send it a prompt like "a cute robot painting a sunset" and get back a unique AI-generated image!
 
-**Why Azure Functions + GPUs?**
+**Why Azure Functions + Serverless GPUs?**
 
 - 🚀 **Fast** - NVIDIA T4 GPUs generate images in seconds
 - 💰 **Cost-effective** - Only pay when generating images (scales to zero!)
