@@ -1,124 +1,96 @@
-# Build Your Own AI Image Generator with Azure Functions on Container Apps and GPUs 🎨
+# GPU Image Generation - Azure Functions on Container Apps
 
-Ever wanted to create your own AI-powered image generator? In this tutorial, I'll show you how to build one using Azure Functions running on Azure Container Apps with serverless GPUs. The best part? You don't need to worry about managing servers or installing GPU drivers - Azure handles all of that for you!
+This project demonstrates how to deploy a GPU-accelerated image generation function (using Stable Diffusion) as an Azure Function running on Azure Container Apps with GPU workload profiles.
 
-## What We're Building
+## 🎯 Overview
 
-We're going to create an API that turns text descriptions into images using Stable Diffusion. Send it a prompt like "a cute robot painting a sunset" and get back a unique AI-generated image!
+This sample is inspired by the [Azure Container Apps GPU Image Generation Tutorial](https://learn.microsoft.com/en-us/azure/container-apps/gpu-image-generation), but modified to run as an **Azure Function** instead of a regular container. This provides:
 
-**Why Azure Functions + GPUs?**
+- **Event-driven scaling** - Scale based on HTTP requests
+- **Azure Functions programming model** - Use familiar triggers and bindings
+- **GPU acceleration** - Leverage NVIDIA T4 GPUs for fast inference
+- **Cost optimization** - Scale to zero when not in use
 
-- 🚀 **Fast** - NVIDIA T4 GPUs generate images in seconds
-- 💰 **Cost-effective** - Only pay when generating images (scales to zero!)
-- 🔧 **Simple** - No GPU drivers or infrastructure to manage
-- 📈 **Scalable** - Handles multiple requests automatically
-
-Here's what the final result looks like:
-
-```
-POST /api/generate
-{
-    "prompt": "A friendly robot chef cooking pasta in a cozy kitchen"
-}
-
-Response: { "success": true, "image": "base64-encoded-image..." }
-```
-
-## Before You Start
-
-You'll need a few things ready:
-
-| What You Need | Why |
-|---------------|-----|
-| **Azure account** | [Create a free account](https://azure.microsoft.com/free/) if you don't have one |
-| **GPU access** | GPUs require special quota approval. [Request access here](https://learn.microsoft.com/en-us/azure/container-apps/gpu-serverless-overview#request-access) - it usually takes a day or two |
-| **Azure CLI** | [Download here](https://docs.microsoft.com/cli/azure/install-azure-cli) - this is how we'll deploy everything |
-
-> 💡 **Tip:** Request GPU access first since it takes time to approve. You can read through this tutorial while waiting!
-
-## How It Works
-
-Here's the simple flow:
-
-```
-Your App  →  Azure Function on Container Apps  →  Stable Diffusion (on GPU)  →  Image!
-   📱                   ⚡                              🎨                       🖼️
-```
-
-The magic happens inside an Azure Function running on Azure Container Apps with GPU access. When a request comes in:
-
-1. The function receives your text prompt
-2. Stable Diffusion (running on a Tesla T4 GPU) generates the image
-3. You get back a base64-encoded PNG image
-
-## Let's Build It! 🛠️
-
-### Step 1: Get the Code
-
-First, grab the sample code from GitHub:
-
-```bash
-git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
-cd function-on-aca-gpu
-```
-
-Here's what's in the project:
+## 📁 Project Structure
 
 ```
 gpu-function-image-gen/
-├── function_app.py      # The main code - handles requests and generates images
-├── requirements.txt     # Python packages we need
-├── Dockerfile          # Packages everything into a container
-├── host.json           # Azure Functions settings
-└── deploy.ps1          # One-click deployment script!
+├── function_app.py        # Main Azure Functions application code
+├── host.json              # Azure Functions host configuration
+├── local.settings.json    # Local development settings
+├── requirements.txt       # Python dependencies
+├── Dockerfile            # GPU-enabled Docker image (Azure Functions base)
+├── Dockerfile.nvidia     # Alternative Dockerfile using NVIDIA base
+├── deploy.sh             # Bash deployment script
+├── deploy.ps1            # PowerShell deployment script
+└── README.md             # This file
 ```
 
-### Step 2: Understand the Code
+## 🚀 Quick Start
 
-Let's look at the key parts. Don't worry - it's simpler than it looks!
+### Prerequisites
 
-**The image generation function** (`function_app.py`):
+1. **Azure subscription** with access to GPU quotas
+2. **Azure CLI** installed and configured
+3. **GPU quota approved** - Submit a request via Azure support for GPU workload profiles
 
-```python
-@app.route(route="generate", methods=["POST"])
-def generate_image(req: func.HttpRequest) -> func.HttpResponse:
-    # Get the prompt from the request
-    req_body = req.get_json()
-    prompt = req_body.get('prompt', '')
-    
-    # Load our AI model (only happens once, then it's cached)
-    pipe = get_pipeline()
-    
-    # Generate the image - this is where the GPU magic happens!
-    result = pipe(prompt=prompt, num_inference_steps=25)
-    
-    # Convert to base64 and send back
-    image = result.images[0]
-    # ... encoding logic ...
-    
-    return func.HttpResponse(json.dumps({"success": True, "image": img_base64}))
-```
+### Deploy to Azure
 
-That's it! The heavy lifting is done by the `diffusers` library and the GPU.
+You have three deployment options:
 
-### Step 3: Deploy to Azure
-
-You have two options: **command line scripts** (faster, recommended) or the **Azure Portal** (great for learning).
+| Option | Method | Best For |
+|--------|--------|----------|
+| **Option A** | Azure Developer CLI (`azd up`) | Fastest, one-command deployment |
+| **Option B** | PowerShell/Bash scripts | More control, customizable |
+| **Option C** | Manual CLI commands | Learning, step-by-step |
 
 ---
 
-#### Option A: Deploy using Command Line 💻
+#### Option A: Azure Developer CLI (Recommended) 🚀
 
-Use our one-click deployment script - it does everything for you!
+The fastest way to deploy - one command does everything!
 
-**On Windows (PowerShell):**
+```bash
+# Install Azure Developer CLI if you haven't
+# https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd
+
+# Clone and deploy
+git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
+cd function-on-aca-gpu
+azd up
+```
+
+You'll be prompted for:
+- **Environment name**: A unique name (e.g., `gpufunc-dev`)
+- **Azure location**: Select `swedencentral`
+- **Azure subscription**: Select your subscription
+
+**Resources created:**
+- Resource Group: `rg-{environmentName}`
+- Log Analytics: `log-{environmentName}`
+- Application Insights: `appi-{environmentName}`
+- Container Registry: `acr{environmentName}`
+- Storage Account: `st{environmentName}`
+- Container Apps Environment: `cae-{environmentName}` (with GPU workload profile)
+- Function App: `ca-{environmentName}`
+
+**Clean up:**
+```bash
+azd down
+```
+
+---
+
+#### Option B: PowerShell/Bash Scripts
+
+**Windows (PowerShell):**
 
 ```powershell
 cd function-on-aca-gpu
 .\deploy.ps1
 ```
 
-**On Mac/Linux:**
+**Linux/macOS/WSL (Bash):**
 
 ```bash
 cd function-on-aca-gpu
@@ -126,330 +98,203 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-☕ Grab a coffee - this takes about 10-15 minutes. The script will:
-
-1. Create a resource group for all our stuff
-2. Set up a container registry to store our Docker image
-3. Build and upload the Docker image (no Docker Desktop needed!)
-4. Create a Container Apps environment with GPU support
-5. Deploy the function app
-6. Give you the URL when it's done!
-
-When it finishes, you'll see something like:
-
-```
-============================================
-🎉 Deployment Complete!
-============================================
-Function App URL: https://gpu-image-gen-func.jollybay-xxx.swedencentral.azurecontainerapps.io
-
-Endpoints:
-  - Generate: https://gpu-image-gen-func.../api/generate
-  - Health:   https://gpu-image-gen-func.../api/health
-============================================
-```
-
 ---
 
-#### Option B: Deploy using Azure Portal 🖱️
+#### Option C: Manual Deployment Steps
 
-If you prefer clicking through a UI, follow these steps:
+If you prefer to deploy manually:
 
-**Part 1: Create a Container Registry**
+1. **Create Resource Group and ACR:**
+   ```bash
+   az group create --name gpu-functions-rg --location swedencentral
+   az acr create --resource-group gpu-functions-rg --name gpufunctionsacr --sku Standard --admin-enabled true
+   ```
 
-1. Go to the [Azure Portal](https://portal.azure.com) and search for **Container Registries**
-2. Click **+ Create**
-3. Fill in the details:
+2. **Build and push the Docker image:**
+   ```bash
+   az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dockerfile .
+   ```
 
-   | Setting | Value |
-   |---------|-------|
-   | Subscription | Select your subscription |
-   | Resource group | Create new → `gpu-functions-rg` |
-   | Registry name | `gpufunctionsacr` (must be globally unique) |
-   | Location | `Sweden Central` |
-   | SKU | `Standard` |
+3. **Create Container Apps Environment with GPU:**
+   ```bash
+   az containerapp env create --name gpu-functions-env --resource-group gpu-functions-rg --location swedencentral --enable-workload-profiles
+   
+   az containerapp env workload-profile add --name gpu-functions-env --resource-group gpu-functions-rg --workload-profile-name gpu-profile --workload-profile-type Consumption-GPU-NC8as-T4
+   ```
 
-4. Click **Review + create** → **Create**
-5. Once created, go to the registry → **Settings** → **Access keys**
-6. Enable **Admin user** and note the **Login server**, **Username**, and **Password**
+4. **Create Storage Account:**
+   ```bash
+   az storage account create --name gpufuncstg123 --resource-group gpu-functions-rg --location swedencentral --sku Standard_LRS
+   ```
 
-**Part 2: Build and Push the Docker Image**
+5. **Deploy Function App:**
+   ```bash
+   az functionapp create \
+       --name gpu-image-gen-func \
+       --resource-group gpu-functions-rg \
+       --storage-account gpufuncstg123 \
+       --environment gpu-functions-env \
+       --functions-version 4 \
+       --runtime python \
+       --image gpufunctionsacr.azurecr.io/gpu-image-gen:latest \
+       --registry-server gpufunctionsacr.azurecr.io \
+       --registry-username <acr-username> \
+       --registry-password <acr-password> \
+       --workload-profile-name gpu-profile \
+       --cpu 4 \
+       --memory 28Gi
+   ```
 
-Since we can't build Docker images directly in the portal, use Azure Cloud Shell:
+## 📡 API Endpoints
 
-1. Click the **Cloud Shell** icon (>_) in the top navigation bar
-2. Choose **Bash**
-3. Navigate to your cloned repo folder (from Step 1) and run:
+### Generate Image
+**POST** `/api/generate`
 
-```bash
-cd function-on-aca-gpu
+Generate an image from a text prompt.
 
-# Build and push to your registry
-az acr build --registry gpufunctionsacr --image gpu-image-gen:latest --file Dockerfile .
-```
-
-**Part 3: Create a Container Apps Environment with GPU**
-
-1. Search for **Container Apps Environments** and click **+ Create**
-2. Fill in the **Basics** tab:
-
-   | Setting | Value |
-   |---------|-------|
-   | Subscription | Select your subscription |
-   | Resource group | `gpu-functions-rg` |
-   | Environment name | `gpu-functions-env` |
-   | Region | `Sweden Central` |
-   | Environment type | `Workload profiles` |
-
-3. Click **Workload profiles** tab → **+ Add workload profile**
-4. Configure the GPU profile:
-
-   | Setting | Value |
-   |---------|-------|
-   | Workload profile name | `gpu-profile` |
-   | Workload profile size | `Consumption - GPU NC8as-T4` |
-
-5. Click **Add** → **Review + create** → **Create**
-
-**Part 4: Create the Container App with Azure Functions**
-
-1. Search for **Container Apps** and click **+ Create** → **Container App**
-2. Fill in the **Basics** tab:
-
-   | Setting | Value |
-   |---------|-------|
-   | Subscription | Select your subscription |
-   | Resource group | `gpu-functions-rg` |
-   | Container app name | `gpu-image-gen-func` |
-   | **Optimize for Azure Functions** | ✅ **Check this box!** (This is important - it enables Azure Functions support) |
-   | Region | `Sweden Central` |
-   | Container Apps Environment | Select `gpu-functions-env` |
-
-3. Click **Next: Container >** and fill in:
-
-   | Setting | Value |
-   |---------|-------|
-   | Use quickstart image | ❌ Uncheck |
-   | Name | `gpu-image-gen-container` |
-   | Image source | `Azure Container Registry` |
-   | Registry | `gpufunctionsacr` |
-   | Image | `gpu-image-gen` |
-   | Image tag | `latest` |
-   | Workload profile | `gpu-profile` |
-   | GPU | ✅ Check this box |
-
-4. Add environment variables at the bottom of the Container tab:
-
-   | Name | Value |
-   |------|-------|
-   | `MODEL_ID` | `runwayml/stable-diffusion-v1-5` |
-   | `FUNCTIONS_WORKER_RUNTIME` | `python` |
-
-5. Click **Next: Ingress >** and configure:
-
-   | Setting | Value |
-   |---------|-------|
-   | Ingress | ✅ Enabled |
-   | Ingress traffic | `Accepting traffic from anywhere` |
-   | Target port | `80` |
-
-6. Click **Review + create** → **Create**
-
-🎉 **Done!** Once deployed, find your function URL under **Overview** → **Application Url**
-
-## Test Your Image Generator! 🧪
-
-Now that your function is deployed, let's make sure everything works!
-
-### Check the Health Endpoint
-
-First, verify the GPU is available:
-
-```powershell
-Invoke-RestMethod -Uri "https://YOUR-FUNCTION-URL/api/health"
-```
-
-You should see:
+**Request Body:**
 ```json
 {
-    "status": "healthy",
-    "gpu_available": true,
-    "gpu_info": {
-        "name": "Tesla T4",
-        "memory_total_gb": 15.56
-    }
+  "prompt": "A beautiful sunset over mountains, digital art, 4k",
+  "negative_prompt": "blurry, low quality",
+  "num_steps": 25,
+  "guidance_scale": 7.5,
+  "width": 512,
+  "height": 512
 }
 ```
 
-🎉 **GPU detected!** Now let's generate an image.
-
-### Generate Your First Image
-
-```powershell
-# Create the request
-$body = @{
-    prompt = "A happy corgi astronaut floating in space, digital art"
-    num_steps = 25
-} | ConvertTo-Json
-
-# Call the API
-$response = Invoke-RestMethod -Uri "https://YOUR-FUNCTION-URL/api/generate" `
-    -Method POST `
-    -ContentType "application/json" `
-    -Body $body
-
-# Save the image to a file
-$imageBytes = [Convert]::FromBase64String($response.image)
-[IO.File]::WriteAllBytes("corgi-astronaut.png", $imageBytes)
-
-# Open it!
-Start-Process "corgi-astronaut.png"
-```
-
-> ⏱️ **First request is slow** (1-2 minutes) because it downloads the AI model (~5GB). After that, images generate in just a few seconds!
-
-## Customize Your Prompts 🎨
-
-Play around with different prompts! Here are some ideas:
-
-| Prompt | What You Get |
-|--------|--------------|
-| `"A cozy cabin in a snowy forest, warm lighting"` | Peaceful winter scene |
-| `"Cyberpunk city at night with neon signs"` | Futuristic cityscape |
-| `"Watercolor painting of a cat reading a book"` | Artistic cat portrait |
-| `"Steampunk robot serving tea, detailed"` | Victorian-style robot |
-
-**Pro tips for better results:**
-- Be specific: "golden retriever" works better than just "dog"
-- Add style hints: "digital art", "oil painting", "photograph"
-- Describe lighting: "sunset", "dramatic lighting", "soft glow"
-
-## API Reference
-
-Here's everything you can send to the `/api/generate` endpoint:
-
-| Parameter | Type | Default | What It Does |
-|-----------|------|---------|--------------|
-| `prompt` | string | *required* | Describe what you want to see |
-| `negative_prompt` | string | `""` | What to avoid (e.g., "blurry, ugly") |
-| `num_steps` | int | `25` | More steps = better quality but slower |
-| `guidance_scale` | float | `7.5` | Higher = follows prompt more strictly |
-| `width` | int | `512` | Image width (keep at 512 for best results) |
-| `height` | int | `512` | Image height |
-
-**Example with all options:**
-
+**Response:**
 ```json
 {
-    "prompt": "A magical library with floating books",
-    "negative_prompt": "blurry, low quality, distorted",
-    "num_steps": 30,
-    "guidance_scale": 8.0,
-    "width": 512,
-    "height": 512
+  "success": true,
+  "prompt": "A beautiful sunset over mountains...",
+  "image": "<base64-encoded-png>",
+  "format": "png",
+  "width": 512,
+  "height": 512
 }
 ```
 
-## Making It Faster ⚡
-
-The first request is slow because of "cold start" - the container needs to start up and load the AI model. Here's how to speed things up:
-
-### Option 1: Keep One Instance Warm
-
-Tell Azure to always keep one container running:
-
+**Example with curl:**
 ```bash
-az functionapp config set \
-    --name gpu-image-gen-func \
-    --resource-group gpu-functions-rg \
-    --min-replicas 1
+curl -X POST https://<your-function-app>.azurewebsites.net/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "A cute cat wearing a space helmet, digital art"}'
 ```
 
-⚠️ **Heads up:** This keeps the GPU running 24/7, which costs more. Great for production, but maybe not for testing.
+### Health Check
+**GET** `/api/health`
 
-### Option 2: Enable Artifact Streaming
+Check service health and GPU status.
 
-This makes the container start faster:
-
-```bash
-az acr artifact-streaming update \
-    --name gpufunctionsacr \
-    --repository gpu-image-gen \
-    --enable
+**Response:**
+```json
+{
+  "status": "healthy",
+  "gpu_available": true,
+  "gpu_info": {
+    "name": "Tesla T4",
+    "memory_total_gb": 15.0,
+    "memory_allocated_gb": 2.5,
+    "memory_reserved_gb": 3.0
+  },
+  "model_loaded": true
+}
 ```
 
-## What About Costs? 💰
+### Web UI
+**GET** `/api/`
 
-Good news - this can be very affordable! Here's where to find pricing for each resource:
+Access a simple web interface to generate images interactively.
 
-| Resource | Pricing Info |
-|----------|-------------|
-| **Azure Container Apps (GPU)** | [Container Apps Pricing](https://azure.microsoft.com/pricing/details/container-apps/) - GPU workload profiles section |
-| **Azure Container Registry** | [ACR Pricing](https://azure.microsoft.com/pricing/details/container-registry/) |
-| **Azure Functions** | [Functions Pricing](https://azure.microsoft.com/pricing/details/functions/) - Container Apps hosting |
+## ⚙️ Configuration
 
-**Key cost-saving tips:**
+### Environment Variables
 
-- 💡 Set `min-replicas` to **0** during development - you only pay when the function is running!
-- 💡 GPU billing is per-second when containers are active
-- 💡 Scale to zero means $0 when idle (just wait for cold starts)
-- 💡 Use the [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) to estimate your monthly costs
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MODEL_ID` | Hugging Face model ID | `stabilityai/stable-diffusion-2-1-base` |
+| `AzureWebJobsStorage` | Storage connection string | Required |
+| `FUNCTIONS_WORKER_RUNTIME` | Runtime identifier | `python` |
 
-## Clean Up When Done 🧹
+### Supported GPU Workload Profiles
 
-Don't want to keep paying? Delete everything with one command:
+| Profile | GPU | vCPUs | Memory | Best For |
+|---------|-----|-------|--------|----------|
+| `Consumption-GPU-NC8as-T4` | NVIDIA T4 | 8 | 56 GB | Image generation, inference |
+| `Consumption-GPU-NC16as-T4` | NVIDIA T4 | 16 | 110 GB | Larger models |
+| `Consumption-GPU-NC24as-T4` | NVIDIA T4 | 24 | 220 GB | Multiple concurrent requests |
+
+### Supported Regions
+
+GPU workload profiles are available in:
+- Sweden Central
+- West US 3
+- Australia East
+- East US 2
+
+Check the [official documentation](https://learn.microsoft.com/en-us/azure/container-apps/gpu-serverless-overview) for the latest supported regions.
+
+## 🔧 Local Development
+
+### With GPU (requires NVIDIA GPU and Docker with GPU support):
 
 ```bash
-az group delete --name gpu-functions-rg --yes
+# Build the image
+docker build -t gpu-image-gen:local -f Dockerfile .
+
+# Run with GPU support
+docker run --gpus all -p 7071:80 gpu-image-gen:local
 ```
 
-This removes all the resources we created. You can always redeploy later!
+### Without GPU (CPU-only, slower):
 
-## Troubleshooting 🔧
+```bash
+# Create virtual environment
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# or: source .venv/bin/activate  # Linux/macOS
 
-**"Model failed to load" error?**
-- Some models require a Hugging Face account. We use `runwayml/stable-diffusion-v1-5` which works without authentication.
+# Install dependencies (CPU-only PyTorch)
+pip install -r requirements.txt
 
-**Images look weird?**
-- Try adding `"blurry, distorted, low quality"` to `negative_prompt`
-- Increase `num_steps` to 30 or 40
+# Run locally
+func start
+```
 
-**Function times out?**
-- First request can take 2+ minutes. Be patient!
-- Check GPU is available with the `/api/health` endpoint
+## 💡 Tips for Better Performance
 
-**GPU not detected?**
-- Make sure GPU quota was approved
-- Verify `gpu-profile` workload profile was created
+1. **Reduce cold start time:**
+   - Uncomment the model pre-download in Dockerfile
+   - Use artifact streaming (enable in Azure Portal)
+   - Keep `min-replicas >= 1` for warm instances
 
-## What's Next? 🚀
+2. **Optimize inference:**
+   - Enable xFormers for memory-efficient attention
+   - Use smaller image dimensions (512x512)
+   - Reduce inference steps (20-30 is usually sufficient)
 
-Now that you have a working image generator, here are some ideas:
+3. **Cost optimization:**
+   - Set `min-replicas: 0` when not in use
+   - Use appropriate timeout values
+   - Monitor GPU utilization
 
-- **Build a web UI** - Create a simple HTML page to call your API
-- **Try different models** - Swap to SDXL for higher quality images
-- **Add image-to-image** - Modify existing images with AI
-- **Create a Discord bot** - Let your friends generate images!
+## 📚 Related Resources
 
-## Wrapping Up
+- [Azure Functions on Container Apps](https://learn.microsoft.com/en-us/azure/azure-functions/functions-container-apps-hosting)
+- [GPU Tutorial (Original Container)](https://learn.microsoft.com/en-us/azure/container-apps/gpu-image-generation)
+- [Serverless GPUs Overview](https://learn.microsoft.com/en-us/azure/container-apps/gpu-serverless-overview)
+- [Stable Diffusion on Hugging Face](https://huggingface.co/stabilityai/stable-diffusion-2-1-base)
 
-You just built your own AI image generator! 🎉 
+## 🧹 Clean Up
 
-Here's what we accomplished:
-- ✅ Deployed an Azure Function with GPU support
-- ✅ Set up Stable Diffusion for image generation  
-- ✅ Created a simple API anyone can call
-- ✅ Learned how to optimize costs and performance
+To remove all resources:
 
-The full source code is available at: **[github.com/Azure-Samples/function-on-aca-gpu](https://github.com/Azure-Samples/function-on-aca-gpu)**
+```bash
+az group delete --name gpu-functions-rg --yes --no-wait
+```
 
-Have questions or built something cool? I'd love to hear about it!
+## 📄 License
 
----
-
-## Resources
-
-- 📚 [Azure Container Apps GPU docs](https://learn.microsoft.com/en-us/azure/container-apps/gpu-serverless-overview)
-- 📚 [Azure Functions on Container Apps](https://learn.microsoft.com/en-us/azure/azure-functions/functions-container-apps-hosting)
-- 📚 [Stable Diffusion guide](https://huggingface.co/docs/diffusers/using-diffusers/sdxl)
-- 💻 [Sample code on GitHub](https://github.com/Azure-Samples/function-on-aca-gpu)
+This sample is provided under the MIT license.

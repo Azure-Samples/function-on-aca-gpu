@@ -29,10 +29,6 @@ echo "============================================"
 echo "Checking Azure login..."
 az account show > /dev/null 2>&1 || az login
 
-# Ensure the containerapp extension is up to date (required for --kind functionapp)
-echo "Updating Azure CLI containerapp extension..."
-az extension add --name containerapp --upgrade --allow-preview true
-
 # Set subscription
 echo "Setting subscription..."
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -50,12 +46,13 @@ az acr create \
     --resource-group "$RESOURCE_GROUP" \
     --name "$ACR_NAME" \
     --sku Standard \
-    --admin-enabled false \
+    --admin-enabled true \
     --output none
 
-# Get ACR details
+# Get ACR credentials
 ACR_LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query loginServer -o tsv)
-ACR_ID=$(az acr show --name "$ACR_NAME" --query id -o tsv)
+ACR_USERNAME=$(az acr credential show --name "$ACR_NAME" --query username -o tsv)
+ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query passwords[0].value -o tsv)
 
 # Build and push the image
 echo "Building and pushing Docker image..."
@@ -97,64 +94,42 @@ az containerapp env workload-profile add \
     --workload-profile-type "Consumption-GPU-NC8as-T4" \
     --output none
 
-# Create the Function App on Container Apps with GPU (with system-assigned identity)
+# Create the Function App on Container Apps with GPU
 echo "Creating Function App on Container Apps with GPU..."
-az containerapp create \
+az functionapp create \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
+    --storage-account "$STORAGE_ACCOUNT" \
     --environment "$ENVIRONMENT_NAME" \
-    --image "mcr.microsoft.com/azure-functions/dotnet8-quickstart-demo:1.0" \
-    --ingress external \
-    --target-port 80 \
-    --kind functionapp \
+    --functions-version 4 \
+    --runtime python \
+    --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
+    --registry-server "$ACR_LOGIN_SERVER" \
+    --registry-username "$ACR_USERNAME" \
+    --registry-password "$ACR_PASSWORD" \
     --workload-profile-name "gpu-profile" \
     --cpu 4 \
     --memory 28Gi \
     --min-replicas 0 \
     --max-replicas 3 \
-    --system-assigned \
-    --env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
     --output none
 
-# Get the system-assigned identity principal ID
-echo "Configuring system-assigned managed identity for ACR access..."
-SYSTEM_IDENTITY_PRINCIPAL_ID=$(az containerapp show \
+# Configure app settings
+echo "Configuring app settings..."
+az functionapp config appsettings set \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --query "identity.principalId" -o tsv)
-
-# Assign AcrPull role to system-assigned identity
-az role assignment create \
-    --assignee "$SYSTEM_IDENTITY_PRINCIPAL_ID" \
-    --role "AcrPull" \
-    --scope "$ACR_ID" \
-    --output none
-
-# Wait for role assignment to propagate
-echo "Waiting for role assignment to propagate..."
-sleep 30
-
-# Update the container app to use the ACR image with system identity
-echo "Updating container app with ACR image..."
-az containerapp registry set \
-    --name "$FUNCTION_APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --server "$ACR_LOGIN_SERVER" \
-    --identity system \
-    --output none
-
-az containerapp update \
-    --name "$FUNCTION_APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
-    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
+    --settings \
+        "MODEL_ID=stabilityai/stable-diffusion-2-1-base" \
+        "FUNCTIONS_WORKER_RUNTIME=python" \
+        "AzureWebJobsStorage=$STORAGE_CONNECTION" \
     --output none
 
 # Get the function app URL
-FUNCTION_URL=$(az containerapp show \
+FUNCTION_URL=$(az functionapp show \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --query "properties.configuration.ingress.fqdn" -o tsv)
+    --query "defaultHostName" -o tsv)
 
 echo ""
 echo "============================================"

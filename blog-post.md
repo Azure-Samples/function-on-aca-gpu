@@ -103,13 +103,83 @@ That's it! The heavy lifting is done by the `diffusers` library and the GPU.
 
 ### Step 3: Deploy to Azure
 
-You have two options: **command line scripts** (faster, recommended) or the **Azure Portal** (great for learning).
+You have three options for deployment:
+
+| Option | Method | Best For |
+|--------|--------|----------|
+| **Option A** | Azure Developer CLI (`azd up`) | Fastest, one-command deployment |
+| **Option B** | PowerShell/Bash scripts | More control, customizable |
+| **Option C** | Azure Portal | Learning, visual approach |
 
 ---
 
-#### Option A: Deploy using Command Line 💻
+#### Option A: Deploy using Azure Developer CLI (`azd up`) 🚀
 
-Use our one-click deployment script - it does everything for you!
+This is the **fastest and recommended** way to deploy! One command does everything.
+
+**Prerequisites:**
+- Install [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)
+
+**Deploy:**
+
+```bash
+# Clone the repo
+git clone https://github.com/Azure-Samples/function-on-aca-gpu.git
+cd function-on-aca-gpu
+
+# Deploy everything with one command!
+azd up
+```
+
+You'll be prompted for:
+- **Environment name**: A unique name for your deployment (e.g., `gpufunc-dev`)
+- **Azure location**: Select `swedencentral` (has GPU quota)
+- **Azure subscription**: Select your subscription
+
+☕ Grab a coffee - this takes about 15-20 minutes. The `azd up` command will:
+
+1. Create a resource group (`rg-{environmentName}`)
+2. Set up Log Analytics and Application Insights for monitoring
+3. Create a Container Registry and build your image in the cloud
+4. Create a Storage Account for Azure Functions
+5. Create a Container Apps Environment with GPU workload profile
+6. Deploy your Function App with GPU access
+7. Give you the URL when it's done!
+
+When it finishes, you'll see:
+
+```
+Deploying services (azd deploy)
+
+  (✓) Done: Deploying service api
+  - Endpoint: https://ca-{envname}.{random}.swedencentral.azurecontainerapps.io/
+
+SUCCESS: Your up workflow to provision and deploy to Azure completed in 20 minutes.
+```
+
+**Resources Created:**
+
+| Resource | Name |
+|----------|------|
+| Resource Group | `rg-{environmentName}` |
+| Log Analytics | `log-{environmentName}` |
+| Application Insights | `appi-{environmentName}` |
+| Container Registry | `acr{environmentName}` |
+| Storage Account | `st{environmentName}` |
+| Container Apps Environment | `cae-{environmentName}` |
+| Function App | `ca-{environmentName}` |
+
+**Clean up when done:**
+
+```bash
+azd down
+```
+
+---
+
+#### Option B: Deploy using Command Line Scripts 💻
+
+Use our deployment scripts for more control over the deployment process.
 
 **On Windows (PowerShell):**
 
@@ -151,7 +221,7 @@ Endpoints:
 
 ---
 
-#### Option B: Deploy using Azure Portal 🖱️
+#### Option C: Deploy using Azure Portal 🖱️
 
 If you prefer clicking through a UI, follow these steps:
 

@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: gpu-function-image-gen
+metadata:
+  template: gpu-function-image-gen@1.0.0
+
+# Provision infrastructure
+infra:
+  provider: bicep
+  path: infra
+
+# Define services
+services:
+  api:
+    project: .
+    language: python
+    host: containerapp
+    docker:
+      path: Dockerfile
+      remoteBuild: true

@@ -34,10 +34,6 @@ try {
     az login
 }
 
-# Ensure containerapp extension is up to date
-Write-Host "Updating Azure CLI containerapp extension..." -ForegroundColor Yellow
-az extension add --name containerapp --upgrade --allow-preview true 2>$null
-
 # Set subscription
 if ($SubscriptionId) {
     Write-Host "Setting subscription..." -ForegroundColor Yellow
@@ -57,12 +53,13 @@ az acr create `
     --resource-group $ResourceGroup `
     --name $AcrName `
     --sku Standard `
-    --admin-enabled false `
+    --admin-enabled true `
     --output none
 
-# Get ACR details
+# Get ACR credentials
 $AcrLoginServer = az acr show --name $AcrName --query loginServer -o tsv
-$AcrId = az acr show --name $AcrName --query id -o tsv
+$AcrUsername = az acr credential show --name $AcrName --query username -o tsv
+$AcrPassword = az acr credential show --name $AcrName --query "passwords[0].value" -o tsv
 
 # Build and push the image
 Write-Host "Building and pushing Docker image..." -ForegroundColor Yellow
@@ -105,65 +102,42 @@ az containerapp env workload-profile add `
     --workload-profile-type "Consumption-GPU-NC8as-T4" `
     --output none
 
-# Create the Function App on Container Apps with GPU (with system-assigned identity)
-# Following: https://learn.microsoft.com/en-us/azure/container-apps/functions-usage
+# Create the Function App on Container Apps with GPU
 Write-Host "Creating Function App on Container Apps with GPU..." -ForegroundColor Yellow
-az containerapp create `
+az functionapp create `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
+    --storage-account $StorageAccount `
     --environment $EnvironmentName `
-    --image "mcr.microsoft.com/azure-functions/dotnet8-quickstart-demo:1.0" `
-    --ingress external `
-    --target-port 80 `
-    --kind functionapp `
+    --functions-version 4 `
+    --runtime python `
+    --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
+    --registry-server $AcrLoginServer `
+    --registry-username $AcrUsername `
+    --registry-password $AcrPassword `
     --workload-profile-name "gpu-profile" `
     --cpu 4 `
     --memory 28Gi `
     --min-replicas 0 `
     --max-replicas 3 `
-    --system-assigned `
-    --env-vars "AzureWebJobsStorage=$StorageConnection" `
     --output none
 
-# Get the system-assigned identity principal ID
-Write-Host "Configuring system-assigned managed identity for ACR access..." -ForegroundColor Yellow
-$SystemIdentityPrincipalId = az containerapp show `
+# Configure app settings
+Write-Host "Configuring app settings..." -ForegroundColor Yellow
+az functionapp config appsettings set `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
-    --query "identity.principalId" -o tsv
-
-# Assign AcrPull role to system-assigned identity
-az role assignment create `
-    --assignee $SystemIdentityPrincipalId `
-    --role "AcrPull" `
-    --scope $AcrId `
-    --output none
-
-# Wait for role assignment to propagate
-Write-Host "Waiting for role assignment to propagate..." -ForegroundColor Yellow
-Start-Sleep -Seconds 30
-
-# Update the container app to use the ACR image with system identity
-Write-Host "Updating container app with ACR image..." -ForegroundColor Yellow
-az containerapp registry set `
-    --name $FunctionAppName `
-    --resource-group $ResourceGroup `
-    --server $AcrLoginServer `
-    --identity system `
-    --output none
-
-az containerapp update `
-    --name $FunctionAppName `
-    --resource-group $ResourceGroup `
-    --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
-    --set-env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
+    --settings `
+        "MODEL_ID=stabilityai/stable-diffusion-2-1-base" `
+        "FUNCTIONS_WORKER_RUNTIME=python" `
+        "AzureWebJobsStorage=$StorageConnection" `
     --output none
 
 # Get the function app URL
-$FunctionUrl = az containerapp show `
+$FunctionUrl = az functionapp show `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
-    --query "properties.configuration.ingress.fqdn" -o tsv
+    --query "defaultHostName" -o tsv
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Green
