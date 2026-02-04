@@ -104,40 +104,30 @@ az containerapp env workload-profile add `
 
 # Create the Function App on Container Apps with GPU
 Write-Host "Creating Function App on Container Apps with GPU..." -ForegroundColor Yellow
-az functionapp create `
+az containerapp create `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
-    --storage-account $StorageAccount `
     --environment $EnvironmentName `
-    --functions-version 4 `
-    --runtime python `
     --image "$AcrLoginServer/${ImageName}:${ImageTag}" `
     --registry-server $AcrLoginServer `
     --registry-username $AcrUsername `
     --registry-password $AcrPassword `
+    --ingress external `
+    --target-port 80 `
+    --kind functionapp `
     --workload-profile-name "gpu-profile" `
     --cpu 4 `
     --memory 28Gi `
     --min-replicas 0 `
     --max-replicas 3 `
-    --output none
-
-# Configure app settings
-Write-Host "Configuring app settings..." -ForegroundColor Yellow
-az functionapp config appsettings set `
-    --name $FunctionAppName `
-    --resource-group $ResourceGroup `
-    --settings `
-        "MODEL_ID=stabilityai/stable-diffusion-2-1-base" `
-        "FUNCTIONS_WORKER_RUNTIME=python" `
-        "AzureWebJobsStorage=$StorageConnection" `
+    --env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$StorageConnection" `
     --output none
 
 # Get the function app URL
-$FunctionUrl = az functionapp show `
+$FunctionUrl = az containerapp show `
     --name $FunctionAppName `
     --resource-group $ResourceGroup `
-    --query "defaultHostName" -o tsv
+    --query "properties.configuration.ingress.fqdn" -o tsv
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Green

@@ -96,40 +96,30 @@ az containerapp env workload-profile add \
 
 # Create the Function App on Container Apps with GPU
 echo "Creating Function App on Container Apps with GPU..."
-az functionapp create \
+az containerapp create \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --storage-account "$STORAGE_ACCOUNT" \
     --environment "$ENVIRONMENT_NAME" \
-    --functions-version 4 \
-    --runtime python \
     --image "$ACR_LOGIN_SERVER/$IMAGE_NAME:$IMAGE_TAG" \
     --registry-server "$ACR_LOGIN_SERVER" \
     --registry-username "$ACR_USERNAME" \
     --registry-password "$ACR_PASSWORD" \
+    --ingress external \
+    --target-port 80 \
+    --kind functionapp \
     --workload-profile-name "gpu-profile" \
     --cpu 4 \
     --memory 28Gi \
     --min-replicas 0 \
     --max-replicas 3 \
-    --output none
-
-# Configure app settings
-echo "Configuring app settings..."
-az functionapp config appsettings set \
-    --name "$FUNCTION_APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --settings \
-        "MODEL_ID=stabilityai/stable-diffusion-2-1-base" \
-        "FUNCTIONS_WORKER_RUNTIME=python" \
-        "AzureWebJobsStorage=$STORAGE_CONNECTION" \
+    --env-vars "MODEL_ID=runwayml/stable-diffusion-v1-5" "FUNCTIONS_WORKER_RUNTIME=python" "AzureWebJobsStorage=$STORAGE_CONNECTION" \
     --output none
 
 # Get the function app URL
-FUNCTION_URL=$(az functionapp show \
+FUNCTION_URL=$(az containerapp show \
     --name "$FUNCTION_APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
-    --query "defaultHostName" -o tsv)
+    --query "properties.configuration.ingress.fqdn" -o tsv)
 
 echo ""
 echo "============================================"
