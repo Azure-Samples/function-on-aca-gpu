@@ -1,15 +1,20 @@
-# GPU Image Generation - Azure Functions on Container Apps
+# Serverless GPU Tutorial: AI Image Generator with Azure Functions
 
-This project demonstrates how to deploy a GPU-accelerated image generation function (using Stable Diffusion) as an Azure Function running on Azure Container Apps with GPU workload profiles.
+> **Deploy Stable Diffusion on Azure Container Apps with serverless GPUs. NVIDIA T4 GPU power with scale-to-zero pricing. One-command deployment with `azd up`.**
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com)
+
+This project demonstrates how to deploy a GPU-accelerated image generation API (using Stable Diffusion) as an Azure Function running on Azure Container Apps with serverless GPU workload profiles.
 
 ## 🎯 Overview
 
 This sample is inspired by the [Azure Container Apps GPU Image Generation Tutorial](https://learn.microsoft.com/en-us/azure/container-apps/gpu-image-generation), but modified to run as an **Azure Function** instead of a regular container. This provides:
 
-- **Event-driven scaling** - Scale based on HTTP requests
-- **Azure Functions programming model** - Use familiar triggers and bindings
-- **GPU acceleration** - Leverage NVIDIA T4 GPUs for fast inference
-- **Cost optimization** - Scale to zero when not in use
+- 🚀 **Fast** - NVIDIA T4 GPUs generate images in seconds
+- 💰 **Cost-effective** - Scale to zero, only pay when generating images
+- 🔧 **Simple** - No GPU drivers or infrastructure to manage
+- 📈 **Scalable** - Handles multiple requests automatically
+- ⚡ **Event-driven** - Azure Functions programming model with triggers and bindings
 
 ## 📁 Project Structure
 
@@ -17,13 +22,16 @@ This sample is inspired by the [Azure Container Apps GPU Image Generation Tutori
 gpu-function-image-gen/
 ├── function_app.py        # Main Azure Functions application code
 ├── host.json              # Azure Functions host configuration
-├── local.settings.json    # Local development settings
 ├── requirements.txt       # Python dependencies
-├── Dockerfile            # GPU-enabled Docker image (Azure Functions base)
-├── Dockerfile.nvidia     # Alternative Dockerfile using NVIDIA base
-├── deploy.sh             # Bash deployment script
-├── deploy.ps1            # PowerShell deployment script
-└── README.md             # This file
+├── Dockerfile             # GPU-enabled Docker image
+├── azure.yaml             # Azure Developer CLI configuration
+├── infra/                 # Bicep templates for infrastructure
+│   ├── main.bicep
+│   ├── api.bicep
+│   └── core/host/container-apps.bicep
+├── deploy.ps1             # PowerShell deployment script
+├── deploy.sh              # Bash deployment script
+└── README.md              # This file
 ```
 
 ## 🚀 Quick Start
@@ -32,7 +40,7 @@ gpu-function-image-gen/
 
 1. **Azure subscription** with access to GPU quotas
 2. **Azure CLI** installed and configured
-3. **GPU quota approved** - Submit a request via Azure support for GPU workload profiles
+3. **GPU quota approved** - [Request access here](https://learn.microsoft.com/en-us/azure/container-apps/gpu-serverless-overview#request-access)
 
 ### Deploy to Azure
 
