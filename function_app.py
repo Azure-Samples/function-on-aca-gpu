@@ -9,12 +9,87 @@ import logging
 import json
 import base64
 import io
+import math
 import os
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 # Global model reference for reuse across invocations
 _pipe = None
+
+DEFAULT_NUM_INFERENCE_STEPS = 25
+DEFAULT_GUIDANCE_SCALE = 7.5
+DEFAULT_IMAGE_SIZE = 512
+MAX_NUM_INFERENCE_STEPS = 50
+MAX_GUIDANCE_SCALE = 20.0
+MAX_IMAGE_SIZE = 1024
+
+
+def _parse_integer_parameter(value, name, minimum, maximum):
+    if isinstance(value, bool):
+        raise ValueError(f"'{name}' must be an integer")
+
+    if isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            raise ValueError(f"'{name}' must be an integer")
+        parsed_value = int(value)
+    else:
+        try:
+            parsed_value = int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"'{name}' must be an integer") from None
+
+    if not minimum <= parsed_value <= maximum:
+        raise ValueError(f"'{name}' must be between {minimum} and {maximum}")
+
+    return parsed_value
+
+
+def _parse_float_parameter(value, name, minimum, maximum):
+    if isinstance(value, bool):
+        raise ValueError(f"'{name}' must be a number")
+
+    try:
+        parsed_value = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"'{name}' must be a number") from None
+
+    if not math.isfinite(parsed_value) or not minimum <= parsed_value <= maximum:
+        raise ValueError(f"'{name}' must be between {minimum} and {maximum}")
+
+    return parsed_value
+
+
+def _parse_generation_parameters(parameters):
+    num_inference_steps = _parse_integer_parameter(
+        parameters.get('num_steps', DEFAULT_NUM_INFERENCE_STEPS),
+        'num_steps',
+        1,
+        MAX_NUM_INFERENCE_STEPS
+    )
+    guidance_scale = _parse_float_parameter(
+        parameters.get('guidance_scale', DEFAULT_GUIDANCE_SCALE),
+        'guidance_scale',
+        0,
+        MAX_GUIDANCE_SCALE
+    )
+    width = _parse_integer_parameter(
+        parameters.get('width', DEFAULT_IMAGE_SIZE),
+        'width',
+        8,
+        MAX_IMAGE_SIZE
+    )
+    height = _parse_integer_parameter(
+        parameters.get('height', DEFAULT_IMAGE_SIZE),
+        'height',
+        8,
+        MAX_IMAGE_SIZE
+    )
+
+    if width % 8 != 0 or height % 8 != 0:
+        raise ValueError("'width' and 'height' must be divisible by 8")
+
+    return num_inference_steps, guidance_scale, width, height
 
 
 def get_pipeline():
@@ -89,24 +164,34 @@ def generate_image(req: func.HttpRequest) -> func.HttpResponse:
                 req_body = req.get_json()
             except ValueError:
                 req_body = {}
+
+            if not isinstance(req_body, dict):
+                return func.HttpResponse(
+                    json.dumps({"error": "Request body must be a JSON object"}),
+                    status_code=400,
+                    mimetype="application/json"
+                )
             
             prompt = req_body.get('prompt', '')
             negative_prompt = req_body.get('negative_prompt', '')
-            num_inference_steps = req_body.get('num_steps', 25)
-            guidance_scale = req_body.get('guidance_scale', 7.5)
-            width = req_body.get('width', 512)
-            height = req_body.get('height', 512)
+            parameters = req_body
         else:
             prompt = req.params.get('prompt', '')
             negative_prompt = req.params.get('negative_prompt', '')
-            num_inference_steps = int(req.params.get('num_steps', 25))
-            guidance_scale = float(req.params.get('guidance_scale', 7.5))
-            width = int(req.params.get('width', 512))
-            height = int(req.params.get('height', 512))
+            parameters = req.params
         
         if not prompt:
             return func.HttpResponse(
                 json.dumps({"error": "Please provide a 'prompt' parameter"}),
+                status_code=400,
+                mimetype="application/json"
+            )
+
+        try:
+            num_inference_steps, guidance_scale, width, height = _parse_generation_parameters(parameters)
+        except ValueError as e:
+            return func.HttpResponse(
+                json.dumps({"error": str(e)}),
                 status_code=400,
                 mimetype="application/json"
             )
